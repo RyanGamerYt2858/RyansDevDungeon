@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ryan's Dungeon - Creative Development Services</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        sky: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
+        }
+        .dark .gradient-bg {
+            background: linear-gradient(135deg, #075985 0%, #0c4a6e 100%);
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .modal {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .modal-hidden {
+            opacity: 0;
+            transform: scale(0.9);
+            pointer-events: none;
+        }
+        .rotate {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .welcome-banner {
+            position: absolute;
+            right: 1rem;
+            top: 1rem;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: bold;
+            color: #075985;
+            z-index: 10;
+        }
+        .dark .welcome-banner {
+            background: rgba(31, 41, 55, 0.9);
+            color: #bae6fd;
+        }
+        .theme-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .theme-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #0ea5e9;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+    </style>
+</head>
+<body class="bg-sky-50 dark:bg-gray-900 min-h-screen font-sans transition-colors duration-300">
+    <!-- Welcome Banner (shown when logged in) -->
+    <div id="welcome-banner" class="welcome-banner hidden">
+        Welcome, <span id="welcome-username"></span>!
+        <button onclick="logout()" class="ml-2 text-sm bg-sky-600 text-white px-2 py-0.5 rounded hover:bg-sky-700">Logout</button>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <i class="fas fa-dungeon text-3xl"></i>
+                    <span class="text-2xl font-bold">Ryan's Dungeon</span>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#services" class="hover:text-sky-200 transition">Services</a>
+                    <a href="#portfolio" class="hover:text-sky-200 transition">Portfolio</a>
+                    <a href="#about" class="hover:text-sky-200 transition">About</a>
+                    <button id="auth-button" onclick="toggleModal('login-modal')" class="bg-white text-sky-600 px-4 py-2 rounded-lg font-medium hover:bg-sky-100 transition">Sign In</button>
+                    <button id="settings-button" onclick="toggleModal('settings-modal')" class="text-white hover:text-sky-200 transition">
+                        <i class="fas fa-cog text-xl"></i>
+                    </button>
+                </div>
+                <button class="md:hidden focus:outline-none" onclick="toggleMobileMenu()">
+                    <i class="fas fa-bars text-2xl"></i>
+                </button>
+            </div>
+            <!-- Mobile menu -->
+            <div id="mobile-menu" class="md:hidden hidden mt-4 pb-4">
+                <a href="#services" class="block py-2 hover:text-sky-200 transition">Services</a>
+                <a href="#portfolio" class="block py-2 hover:text-sky-200 transition">Portfolio</a>
+                <a href="#about" class="block py-2 hover:text-sky-200 transition">About</a>
+                <button id="mobile-auth-button" onclick="toggleModal('login-modal')" class="mt-2 bg-white text-sky-600 px-4 py-2 rounded-lg font-medium hover:bg-sky-100 transition w-full">Sign In</button>
+                <button id="mobile-settings-button" onclick="toggleModal('settings-modal')" class="mt-2 text-white hover:text-sky-200 transition w-full text-left py-2">
+                    <i class="fas fa-cog mr-2"></i> Settings
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="gradient-bg text-white py-20 relative">
+        <div class="container mx-auto px-6 text-center">
+            <h1 class="text-5xl md:text-6xl font-bold mb-6">Unlock Digital Magic</h1>
+            <p class="text-xl md:text-2xl mb-8 max-w-3xl mx-auto">Professional development services for Roblox, Discord, and Unreal Engine projects</p>
+            <div class="flex flex-col md:flex-row justify-center gap-4">
+                <a href="#services" class="bg-white text-sky-600 px-8 py-3 rounded-lg font-bold text-lg hover:bg-sky-100 transition">Our Services</a>
+                <a href="#portfolio" class="border-2 border-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-white hover:text-sky-600 transition">See Our Work</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section id="services" class="py-16 bg-white dark:bg-gray-800">
+        <div class="container mx-auto px-6">
+            <h2 class="text-3xl font-bold text-center text-sky-800 dark:text-sky-200 mb-12">Our Services</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Roblox Service -->
+                <div class="bg-sky-50 dark:bg-gray-700 rounded-xl p-6 shadow-md transition duration-300 card-hover">
+                    <div class="text-sky-600 dark:text-sky-400 mb-4">
+                        <i class="fas fa-gamepad text-4xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-sky-800 dark:text-white mb-3">Roblox Scripting</h3>
+                    <p class="text-sky-700 dark:text-gray-300 mb-4">Custom Lua scripting for your Roblox games, including complex systems, GUIs, and game mechanics tailored to your vision.</p>
+                    <ul class="space-y-2 mb-6">
+                        <li class="flex items-center">
+                            <i class="fas fa-check-circle text-sky-500 mr-2"></i>
+                            <span class="dark:text-gray-300">Custom game mechanics</span>
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fas fa-check-circle text-sky-500 mr-2"></i>
+                            <span class="dark:text-gray-300">Inventory systems</span>
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fas fa-check-circle text-sky-500 mr-2"></i>
+                            <span class="dark:text-gray-300">Leaderboards & data saving</span>
+                        </li>
+                    </ul>
+                    <button onclick="window.location.href='#contact'" class="gradient-bg text-white px-6 py-2 rounded-lg font-medium hover:bg-sky-600 transition">Learn More</button>
+                </div>
+
+                <!-- Discord Service -->
+                <div class="bg-sky-50 dark:bg-gray-700 rounded-xl p-6 shadow-md transition duration-300 card-hover">
+                    <div class="text-sky-600 dark:text-sky-400 mb-4">
+                        <i class="fab fa-discord text-4xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-sky-800 dark:text-white mb-3">Discord Bot Development</h3>
+                    <p class="text-sky-700 dark:text-gray-300 mb-4">Feature-rich Discord bots with moderation tools, custom commands, music playback, and integration with other services.</p>
+                    <ul class="space-y-2 mb-6">
+                        <li class="flex items-center">
+                            <i class="fas fa-check-circle text-sky-500 mr-2"></i>
+                            <span class="dark:text-gray-300">Moderation tools</span>
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fas fa-check-circle text-sky-500 mr-2"></i>
+                            <span class="dark:text-gray-300">Custom commands</span>
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fas fa-check-circle text-sky-500 mr-2"></i>
+                            <span class="dark:text-gray-300">API integrations</span>
+                        </li>
+                    </ul>
+                    <button onclick="window.location.href='#contact'" class="gradient-bg text-white px-6 py-2 rounded-lg font-medium hover:bg-sky-600 transition">Learn More</button>
+                </div>
+
+                <!-- Unreal Service -->
+                <div class="bg-sky-50 dark:bg-gray-700 rounded-xl p-6 shadow-md transition duration-300 card-hover">
+                    <div class="text-sky-600 dark:text-sky-400 mb-4">
+                        <i class="fas fa-cube text-4xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-sky-800 dark:text-white mb-3">Unreal Engine Templates</h3>
+                    <p class="text-sky-700 dark:text-gray-300 mb-4">Ready-to-use Unreal Engine templates for various game genres, complete with core systems to jumpstart your project.</p>
+                    <ul class="space-y-2 mb-6">
+                        <li class="flex items-center">
+                            <i class="fas fa-check-circle text-sky-500 mr-2"></i>
+                            <span class="dark:text-gray-300">FPS/TPS templates</span>
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fas fa-check-circle text-sky-500 mr-2"></i>
+                            <span class="dark:text-gray-300">RPG systems</span>
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fas fa-check-circle text-sky-500 mr-2"></i>
+                            <span class="dark:text-gray-300">Multiplayer foundations</span>
+                        </li>
+                    </ul>
+                    <button onclick="window.location.href='#contact'" class="gradient-bg text-white px-6 py-2 rounded-lg font-medium hover:bg-sky-600 transition">Learn More</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Portfolio Section -->
+    <section id="portfolio" class="py-16 bg-sky-100 dark:bg-gray-700">
+        <div class="container mx-auto px-6">
+            <h2 class="text-3xl font-bold text-center text-sky-800 dark:text-sky-200 mb-4">Our Portfolio</h2>
+            <p class="text-center text-sky-700 dark:text-gray-300 mb-12 max-w-2xl mx-auto">Check out some of our recent projects and see the quality of our work.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Project 1 -->
+                <div class="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-md transition duration-300 card-hover">
+                    <div class="h-48 bg-sky-200 dark:bg-gray-600 flex items-center justify-center">
+                        <i class="fas fa-gamepad text-6xl text-sky-600 dark:text-sky-400"></i>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold text-sky-800 dark:text-white mb-2">Adventure World</h3>
+                        <p class="text-sky-700 dark:text-gray-300 mb-4">A complete Roblox RPG with quest system, inventory, and custom combat mechanics.</p>
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            <span class="bg-sky-100 dark:bg-gray-600 text-sky-800 dark:text-gray-300 px-3 py-1 rounded-full text-sm">Lua</span>
+                            <span class="bg-sky-100 dark:bg-gray-600 text-sky-800 dark:text-gray-300 px-3 py-1 rounded-full text-sm">Roblox</span>
+                            <span class="bg-sky-100 dark:bg-gray-600 text-sky-800 dark:text-gray-300 px-3 py-1 rounded-full text-sm">RPG</span>
+                        </div>
+                        <a href="https://www.roblox.com/games/example" target="_blank" class="text-sky-600 dark:text-sky-400 font-medium hover:text-sky-800 dark:hover:text-sky-300 transition">View Details →</a>
+                    </div>
+                </div>
+                
+                <!-- Project 2 -->
+                <div class="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-md transition duration-300 card-hover">
+                    <div class="h-48 bg-sky-200 dark:bg-gray-600 flex items-center justify-center">
+                        <i class="fab fa-discord text-6xl text-sky-600 dark:text-sky-400"></i>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold text-sky-800 dark:text-white mb-2">ModBot Pro</h3>
+                        <p class="text-sky-700 dark:text-gray-300 mb-4">Advanced Discord moderation bot with auto-moderation, logging, and custom command system.</p>
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            <span class="bg-sky-100 dark:bg-gray-600 text-sky-800 dark:text-gray-300 px-3 py-1 rounded-full text-sm">JavaScript</span>
+                            <span class="bg-sky-100 dark:bg-gray-600 text-sky-800 dark:text-gray-300 px-3 py-1 rounded-full text-sm">Discord.js</span>
+                            <span class="bg-sky-100 dark:bg-gray-600 text-sky-800 dark:text-gray-300 px-3 py-1 rounded-full text-sm">Moderation</span>
+                        </div>
+                        <a href="https://discord.com/developers/docs" target="_blank" class="text-sky-600 dark:text-sky-400 font-medium hover:text-sky-800 dark:hover:text-sky-300 transition">View Details →</a>
+                    </div>
+                </div>
+                
+                <!-- Project 3 -->
+                <div class="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-md transition duration-300 card-hover">
+                    <div class="h-48 bg-sky-200 dark:bg-gray-600 flex items-center justify-center">
+                        <i class="fas fa-cube text-6xl text-sky-600 dark:text-sky-400"></i>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold text-sky-800 dark:text-white mb-2">FPS Starter Kit</h3>
+                        <p class="text-sky-700 dark:text-gray-300 mb-4">Unreal Engine template with weapon system, AI enemies, and multiplayer support.</p>
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            <span class="bg-sky-100 dark:bg-gray-600 text-sky-800 dark:text-gray-300 px-3 py-1 rounded-full text-sm">Unreal</span>
+                            <span class="bg-sky-100 dark:bg-gray-600 text-sky-800 dark:text-gray-300 px-3 py-1 rounded-full text-sm">C++</span>
+                            <span class="bg-sky-100 dark:bg-gray-600 text-sky-800 dark:text-gray-300 px-3 py-1 rounded-full text-sm">Blueprint</span>
+                        </div>
+                        <a href="https://www.unrealengine.com/marketplace" target="_blank" class="text-sky-600 dark:text-sky-400 font-medium hover:text-sky-800 dark:hover:text-sky-300 transition">View Details →</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-12">
+                <a href="https://github.com/ryansdungeon" target="_blank" class="gradient-bg text-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-sky-600 transition">View All Projects</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section id="about" class="py-16 bg-white dark:bg-gray-800">
+        <div class="container mx-auto px-6">
+            <div class="flex flex-col md:flex-row items-center">
+                <div class="md:w-1/2 mb-8 md:mb-0 md:pr-12">
+                    <h2 class="text-3xl font-bold text-sky-800 dark:text-sky-200 mb-6">About Ryan's Dungeon</h2>
+                    <p class="text-sky-700 dark:text-gray-300 mb-4">Founded in 2020, Ryan's Dungeon started as a passion project and has grown into a professional development service specializing in game and bot development.</p>
+                    <p class="text-sky-700 dark:text-gray-300 mb-6">Our mission is to provide high-quality, reliable development services that help creators bring their visions to life without the technical hurdles.</p>
+                    <div class="space-y-4">
+                        <div class="flex items-start">
+                            <div class="bg-sky-100 dark:bg-gray-700 p-3 rounded-full mr-4">
+                                <i class="fas fa-medal text-sky-600 dark:text-sky-400"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-sky-800 dark:text-white">Quality Assurance</h4>
+                                <p class="text-sky-700 dark:text-gray-300">Every project undergoes rigorous testing to ensure flawless performance.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="md:w-1/2 bg-sky-100 dark:bg-gray-700 rounded-xl p-8">
+                    <h3 class="text-2xl font-bold text-sky-800 dark:text-white mb-6">Why Choose Us?</h3>
+                    <div class="space-y-6">
+                        <div class="flex items-start">
+                            <div class="text-sky-600 dark:text-sky-400 mr-4 mt-1">
+                                <i class="fas fa-check-circle text-xl"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-sky-800 dark:text-white mb-1">Industry Experience</h4>
+                                <p class="text-sky-700 dark:text-gray-300">Years of experience in game and bot development across multiple platforms.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start">
+                            <div class="text-sky-600 dark:text-sky-400 mr-4 mt-1">
+                                <i class="fas fa-check-circle text-xl"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-sky-800 dark:text-white mb-1">Custom Solutions</h4>
+                                <p class="text-sky-700 dark:text-gray-300">Tailored solutions designed specifically for your project's unique requirements.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start">
+                            <div class="text-sky-600 dark:text-sky-400 mr-4 mt-1">
+                                <i class="fas fa-check-circle text-xl"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-sky-800 dark:text-white mb-1">Fast Turnaround</h4>
+                                <p class="text-sky-700 dark:text-gray-300">Efficient workflows that deliver quality results without unnecessary delays.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-8">
+                        <button onclick="toggleModal('contact-modal')" class="gradient-bg text-white px-6 py-3 rounded-lg font-bold hover:bg-sky-600 transition w-full">Get Started Today</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="gradient-bg text-white py-16">
+        <div class="container mx-auto px-6 text-center">
+            <h2 class="text-3xl md:text-4xl font-bold mb-6">Ready to Start Your Project?</h2>
+            <p class="text-xl mb-8 max-w-2xl mx-auto">Let's work together to bring your creative vision to life with professional development services.</p>
+            <div class="flex flex-col md:flex-row justify-center gap-4">
+                <button onclick="toggleModal('contact-modal')" class="bg-white text-sky-600 px-8 py-3 rounded-lg font-bold text-lg hover:bg-sky-100 transition">Contact Us</button>
+                <button id="signup-cta-button" onclick="toggleModal('signup-modal')" class="border-2 border-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-white hover:text-sky-600 transition">Sign Up</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-sky-900 dark:bg-gray-900 text-white py-12">
+        <div class="container mx-auto px-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                    <h3 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-dungeon mr-2"></i> Ryan's Dungeon
+                    </h3>
+                    <p class="text-sky-300 dark:text-gray-400">Professional development services for creators and businesses.</p>
+                    <div class="flex space-x-4 mt-4">
+                        <a href="https://twitter.com" target="_blank" class="text-sky-300 dark:text-gray-400 hover:text-white transition"><i class="fab fa-twitter"></i></a>
+                        <a href="https://discord.com" target="_blank" class="text-sky-300 dark:text-gray-400 hover:text-white transition"><i class="fab fa-discord"></i></a>
+                        <a href="https://github.com" target="_blank" class="text-sky-300 dark:text-gray-400 hover:text-white transition"><i class="fab fa-github"></i></a>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="font-bold text-lg mb-4">Services</h4>
+                    <ul class="space-y-2">
+                        <li><a href="#services" class="text-sky-300 dark:text-gray-400 hover:text-white transition">Roblox Scripting</a></li>
+                        <li><a href="#services" class="text-sky-300 dark:text-gray-400 hover:text-white transition">Discord Bots</a></li>
+                        <li><a href="#services" class="text-sky-300 dark:text-gray-400 hover:text-white transition">Unreal Templates</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-bold text-lg mb-4">Company</h4>
+                    <ul class="space-y-2">
+                        <li><a href="#about" class="text-sky-300 dark:text-gray-400 hover:text-white transition">About Us</a></li>
+                        <li><a href="#portfolio" class="text-sky-300 dark:text-gray-400 hover:text-white transition">Portfolio</a></li>
+                        <li><a href="#" class="text-sky-300 dark:text-gray-400 hover:text-white transition">Testimonials</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-bold text-lg mb-4">Contact</h4>
+                    <ul class="space-y-2">
+                        <li class="flex items-center">
+                            <i class="fas fa-envelope mr-2 text-sky-300 dark:text-gray-400"></i>
+                            <span>contact@ryansdungeon.com</span>
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fas fa-map-marker-alt mr-2 text-sky-300 dark:text-gray-400"></i>
+                            <span>Digital Nomad</span>
+                        </li>
+                    </ul>
+                    <div class="mt-4">
+                        <button onclick="toggleModal('login-modal')" class="text-sky-300 dark:text-gray-400 hover:text-white transition font-medium">Sign In / Register</button>
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-sky-800 dark:border-gray-700 mt-8 pt-8 text-center text-sky-400 dark:text-gray-500">
+                <p>&copy; 2023 Ryan's Dungeon. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Login Modal -->
+    <div id="login-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal modal-hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-8 max-w-md w-full mx-4 relative">
+            <button onclick="toggleModal('login-modal')" class="absolute top-4 right-4 text-sky-500 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300">
+                <i class="fas fa-times"></i>
+            </button>
+            <h2 class="text-2xl font-bold text-sky-800 dark:text-white mb-6">Welcome Back</h2>
+            <form id="login-form">
+                <div class="mb-4">
+                    <label for="login-email" class="block text-sky-700 dark:text-gray-300 mb-2">Email</label>
+                    <input type="email" id="login-email" class="w-full px-4 py-2 border border-sky-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                </div>
+                <div class="mb-6">
+                    <label for="login-password" class="block text-sky-700 dark:text-gray-300 mb-2">Password</label>
+                    <input type="password" id="login-password" class="w-full px-4 py-2 border border-sky-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                </div>
+                <button type="submit" class="gradient-bg text-white w-full py-2 rounded-lg font-bold hover:bg-sky-600 transition mb-4 flex items-center justify-center">
+                    <span id="login-text">Sign In</span>
+                    <i id="login-spinner" class="fas fa-spinner rotate ml-2 hidden"></i>
+                </button>
+                <div id="login-error" class="text-red-500 text-sm mb-4 text-center hidden"></div>
+                <div class="text-center">
+                    <button type="button" onclick="toggleModal('forgot-modal')" class="text-sky-600 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-300 transition text-sm">Forgot password?</button>
+                </div>
+            </form>
+            <div class="mt-6 pt-6 border-t border-sky-100 dark:border-gray-700 text-center">
+                <p class="text-sky-700 dark:text-gray-300">Don't have an account? <button onclick="toggleModal('signup-modal')" class="text-sky-600 dark:text-sky-400 font-medium hover:text-sky-800 dark:hover:text-sky-300 transition">Sign up</button></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div id="forgot-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal modal-hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-8 max-w-md w-full mx-4 relative">
+            <button onclick="toggleModal('forgot-modal')" class="absolute top-4 right-4 text-sky-500 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300">
+                <i class="fas fa-times"></i>
+            </button>
+            <h2 class="text-2xl font-bold text-sky-800 dark:text-white mb-6">Reset Your Password</h2>
+            <div id="forgot-step1">
+                <p class="text-sky-700 dark:text-gray-300 mb-6">Enter your email address and we'll send you a link to reset your password.</p>
+                <form id="forgot-form">
+                    <div class="mb-6">
+                        <label for="forgot-email" class="block text-sky-700 dark:text-gray-300 mb-2">Email Address</label>
+                        <input type="email" id="forgot-email" class="w-full px-4 py-2 border border-sky-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                        <div id="email-error" class="text-red-500 text-sm mt-1 hidden">This email is not associated with any account</div>
+                    </div>
+                    <button type="submit" class="gradient-bg text-white w-full py-2 rounded-lg font-bold hover:bg-sky-600 transition flex items-center justify-center">
+                        <span id="forgot-text">Send Reset Link</span>
+                        <i id="forgot-spinner" class="fas fa-spinner rotate ml-2 hidden"></i>
+                    </button>
+                </form>
+                <div class="mt-6 pt-6 border-t border-sky-100 dark:border-gray-700 text-center">
+                    <p class="text-sky-700 dark:text-gray-300">Remember your password? <button onclick="toggleModal('login-modal')" class="text-sky-600 dark:text-sky-400 font-medium hover:text-sky-800 dark:hover:text-sky-300 transition">Sign in</button></p>
+                </div>
+            </div>
+            <div id="forgot-step2" class="hidden text-center">
+                <div class="bg-sky-50 dark:bg-gray-700 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-6">
+                    <i class="fas fa-envelope text-sky-600 dark:text-sky-400 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-sky-800 dark:text-white mb-4">Check Your Email</h3>
+                <p class="text-sky-700 dark:text-gray-300 mb-6">We've sent a password reset link to <span id="sent-email" class="font-medium">user@example.com</span>. Please check your inbox and follow the instructions.</p>
+                <p class="text-sky-700 dark:text-gray-300 text-sm mb-6">Didn't receive the email? <button onclick="resendEmail()" class="text-sky-600 dark:text-sky-400 font-medium hover:text-sky-800 dark:hover:text-sky-300 transition">Resend</button></p>
+                <button onclick="toggleModal('forgot-modal')" class="gradient-bg text-white px-6 py-2 rounded-lg font-medium hover:bg-sky-600 transition">Return to Login</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signup Modal -->
+    <div id="signup-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal modal-hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-8 max-w-md w-full mx-4 relative">
+            <button onclick="toggleModal('signup-modal')" class="absolute top-4 right-4 text-sky-500 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300">
+                <i class="fas fa-times"></i>
+            </button>
+            <h2 class="text-2xl font-bold text-sky-800 dark:text-white mb-6">Create Your Account</h2>
+            <form id="signup-form">
+                <div class="mb-4">
+                    <label for="signup-name" class="block text-sky-700 dark:text-gray-300 mb-2">Full Name</label>
+                    <input type="text" id="signup-name" class="w-full px-4 py-2 border border-sky-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                </div>
+                <div class="mb-4">
+                    <label for="signup-email" class="block text-sky-700 dark:text-gray-300 mb-2">Email</label>
+                    <input type="email" id="signup-email" class="w-full px-4 py-2 border border-sky-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                </div>
+                <div class="mb-4">
+                    <label for="signup-password" class="block text-sky-700 dark:text-gray-300 mb-2">Password</label>
+                    <input type="password" id="signup-password" class="w-full px-4 py-2 border border-sky-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required minlength="6">
+                </div>
+                <div class="mb-6">
+                    <label for="signup-confirm" class="block text-sky-700 dark:text-gray-300 mb-2">Confirm Password</label>
+                    <input type="password" id="signup-confirm" class="w-full px-4 py-2 border border-sky-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                    <div id="password-error" class="text-red-500 text-sm mt-1 hidden">Passwords do not match</div>
+                </div>
+                <button type="submit" class="gradient-bg text-white w-full py-2 rounded-lg font-bold hover:bg-sky-600 transition mb-4 flex items-center justify-center">
+                    <span id="signup-text">Create Account</span>
+                    <i id="signup-spinner" class="fas fa-spinner rotate ml-2 hidden"></i>
+                </button>
+                <div id="signup-error" class="text-red-500 text-sm mb-4 text-center hidden"></div>
+                <div class="text-xs text-sky-700 dark:text-gray-300 text-center">
+                    By signing up, you agree to our <a href="#" class="text-sky-600 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-300 transition">Terms of Service</a> and <a href="#" class="text-sky-600 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-300 transition">Privacy Policy</a>.
+                </div>
+            </form>
+            <div class="mt-6 pt-6 border-t border-sky-100 dark:border-gray-700 text-center">
+                <p class="text-sky-700 dark:text-gray-300">Already have an account? <button onclick="toggleModal('login-modal')" class="text-sky-600 dark:text-sky-400 font-medium hover:text-sky-800 dark:hover:text-sky-300 transition">Sign in</button></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact Modal -->
+    <div id="contact-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal modal-hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-8 max-w-md w-full mx-4 relative">
+            <button onclick="toggleModal('contact-modal')" class="absolute top-4 right-4 text-sky-500 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300">
+                <i class="fas fa-times"></i>
+            </button>
+            <h2 class="text-2xl font-bold text-sky-800 dark:text-white mb-6">Contact Us</h2>
+            <form id="contact-form">
+                <div class="mb-4">
+                    <label for="contact-name" class="block text-sky-700 dark:text-gray-300 mb-2">Your Name</label>
+                    <input type="text" id="contact-name" class="w-full px-4 py-2 border border-sky-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                </div>
+                <div id="contact-email-container" class="mb-4">
+                    <label for="contact-email" class="block text-sky-700 dark:text-gray-300 mb-2">Email</label>
+                    <input type="email" id="contact-email" class="w-full px-4 py-2 border border-sky-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                </div>
+                <div class="mb-4">
+                    <label for="contact-service" class="block text-sky-700 dark:text-gray-300 mb-2">Service Interested In</label>
+                    <select id="contact-service" class="w-full px-4 py-2 border border-sky-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                        <option value="">Select a service</option>
+                        <option value="roblox">Roblox Scripting</option>
+                        <option value="discord">Discord Bot Development</option>
+                        <option value="unreal">Unreal Engine Templates</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label for="contact-message" class="block text-sky-700 dark:text-gray-300 mb-2">Message</label>
+                    <textarea id="contact-message" rows="4" class="w-full px-4 py-2 border border-sky-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required></textarea>
+                </div>
+                <button type="submit" class="gradient-bg text-white w-full py-2 rounded-lg font-bold hover:bg-sky-600 transition flex items-center justify-center">
+                    <span id="contact-text">Send Message</span>
+                    <i id="contact-spinner" class="fas fa-spinner rotate ml-2 hidden"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal modal-hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-8 max-w-md w-full mx-4 relative">
+            <button onclick="toggleModal('settings-modal')" class="absolute top-4 right-4 text-sky-500 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300">
+                <i class="fas fa-times"></i>
+            </button>
+            <h2 class="text-2xl font-bold text-sky-800 dark:text-white mb-6">Settings</h2>
+            
+            <div class="space-y-6">
+                <div>
+                    <h3 class="text-lg font-semibold text-sky-700 dark:text-gray-300 mb-3">Appearance</h3>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sky-700 dark:text-gray-300">Dark Mode</span>
+                        <label class="theme-switch">
+                            <input type="checkbox" id="dark-mode-toggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="pt-4 border-t border-sky-100 dark:border-gray-700">
+                    <h3 class="text-lg font-semibold text-sky-700 dark:text-gray-300 mb-3">Account</h3>
+                    <button onclick="logout()" class="w-full bg-red-500 text-white py-2 rounded-lg font-medium hover:bg-red-600 transition">Logout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyB4j9QY4Z5X5Q5Q5Q5Q5Q5Q5Q5Q5Q5Q5Q5",
+            authDomain: "ryans-dungeon.firebaseapp.com",
+            projectId: "ryans-dungeon",
+            storageBucket: "ryans-dungeon.appspot.com",
+            messagingSenderId: "123456789012",
+            appId: "1:123456789012:web:5Q5Q5Q5Q5Q5Q5Q5Q5Q5Q5"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Check if user is logged in on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize dark mode from localStorage
+            const darkMode = localStorage.getItem('darkMode') === 'true';
+            document.documentElement.classList.toggle('dark', darkMode);
+            document.getElementById('dark-mode-toggle').checked = darkMode;
+
+            // Listen for auth state changes
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    // User is signed in
+                    const displayName = user.email === "ryan.med12@gmail.com" ? "Owner" : user.displayName || user.email;
+                    showWelcomeBanner(displayName);
+                    updateAuthButtons();
+                    
+                    // If user is logged in, hide email field in contact form
+                    if (document.getElementById('contact-email-container')) {
+                        document.getElementById('contact-email-container').classList.add('hidden');
+                        document.getElementById('contact-email').value = user.email;
+                    }
+                } else {
+                    // User is signed out
+                    document.getElementById('welcome-banner').classList.add('hidden');
+                    updateAuthButtons();
+                    
+                    // Show email field in contact form if not logged in
+                    if (document.getElementById('contact-email-container')) {
+                        document.getElementById('contact-email-container').classList.remove('hidden');
+                    }
+                }
+            });
+
+            // Dark mode toggle
+            document.getElementById('dark-mode-toggle').addEventListener('change', function() {
+                const isDarkMode = this.checked;
+                document.documentElement.classList.toggle('dark', isDarkMode);
+                localStorage.setItem('darkMode', isDarkMode);
+            });
+        });
+
+        // Toggle mobile menu
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            menu.classList.toggle('hidden');
+        }
+
+        // Modal functions
+        function toggleModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.toggle('modal-hidden');
+            
+            // Close all other modals when opening a new one
+            if (!modal.classList.contains('modal-hidden')) {
+                document.querySelectorAll('.modal').forEach(m => {
+                    if (m.id !== modalId) m.classList.add('modal-hidden');
+                });
+            }
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener('click', function(event) {
+            if (event.target.classList.contains('modal') && !event.target.classList.contains('modal-hidden')) {
+                event.target.classList.add('modal-hidden');
+            }
+        });
+
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                
+                const targetId = this.getAttribute('href');
+                if (targetId === '#') return;
+                
+                const targetElement = document.querySelector(targetId);
+                if (targetElement) {
+                    targetElement.scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                    
+                    // Close mobile menu if open
+                    const mobileMenu = document.getElementById('mobile-menu');
+                    if (!mobileMenu.classList.contains('hidden')) {
+                        mobileMenu.classList.add('hidden');
+                    }
+                }
+            });
+        });
+
+        // Login form submission
+        document.getElementById('login-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const loginSpinner = document.getElementById('login-spinner');
+            const loginText = document.getElementById('login-text');
+            const loginError = document.getElementById('login-error');
+            
+            loginText.textContent = 'Signing in...';
+            loginSpinner.classList.remove('hidden');
+            loginError.classList.add('hidden');
+            
+            // Sign in with Firebase
+            auth.signInWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    // Signed in
+                    const user = userCredential.user;
+                    showToast('Logged in successfully!', 'success');
+                    toggleModal('login-modal');
+                })
+                .catch((error) => {
+                    const errorCode = error.code;
+                    const errorMessage = error.message;
+                    
+                    loginError.textContent = 'Invalid email or password';
+                    loginError.classList.remove('hidden');
+                })
+                .finally(() => {
+                    loginText.textContent = 'Sign In';
+                    loginSpinner.classList.add('hidden');
+                });
+        });
+
+        // Signup form submission
+        document.getElementById('signup-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('signup-name').value;
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            const confirmPassword = document.getElementById('signup-confirm').value;
+            const passwordError = document.getElementById('password-error');
+            const signupError = document.getElementById('signup-error');
+            const signupSpinner = document.getElementById('signup-spinner');
+            const signupText = document.getElementById('signup-text');
+            
+            // Validate passwords match
+            if (password !== confirmPassword) {
+                passwordError.textContent = 'Passwords do not match';
+                passwordError.classList.remove('hidden');
+                return;
+            } else {
+                passwordError.classList.add('hidden');
+            }
+            
+            signupText.textContent = 'Creating account...';
+            signupSpinner.classList.remove('hidden');
+            signupError.classList.add('hidden');
+            
+            // Create user with Firebase
+            auth.createUserWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    // Signed up
+                    const user = userCredential.user;
+                    
+                    // Update user profile with name
+                    return user.updateProfile({
+                        displayName: name
+                    }).then(() => {
+                        // Save additional user data to Firestore
+                        return db.collection('users').doc(user.uid).set({
+                            name: name,
+                            email: email,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                    });
+                })
+                .then(() => {
+                    showToast('Account created successfully!', 'success');
+                    toggleModal('signup-modal');
+                })
+                .catch((error) => {
+                    const errorCode = error.code;
+                    const errorMessage = error.message;
+                    
+                    if (errorCode === 'auth/email-already-in-use') {
+                        signupError.textContent = 'An account with this email already exists';
+                    } else {
+                        signupError.textContent = errorMessage;
+                    }
+                    signupError.classList.remove('hidden');
+                })
+                .finally(() => {
+                    signupText.textContent = 'Create Account';
+                    signupSpinner.classList.add('hidden');
+                });
+        });
+
+        // Forgot password functionality
+        document.getElementById('forgot-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const emailInput = document.getElementById('forgot-email');
+            const email = emailInput.value;
+            const emailError = document.getElementById('email-error');
+            const forgotText = document.getElementById('forgot-text');
+            const forgotSpinner = document.getElementById('forgot-spinner');
+            
+            forgotText.textContent = 'Sending...';
+            forgotSpinner.classList.remove('hidden');
+            
+            // Send password reset email
+            auth.sendPasswordResetEmail(email)
+                .then(() => {
+                    // Show success message
+                    document.getElementById('forgot-step1').classList.add('hidden');
+                    document.getElementById('forgot-step2').classList.remove('hidden');
+                    document.getElementById('sent-email').textContent = email;
+                })
+                .catch((error) => {
+                    const errorCode = error.code;
+                    const errorMessage = error.message;
+                    
+                    if (errorCode === 'auth/user-not-found') {
+                        emailError.textContent = 'This email is not associated with any account';
+                        emailError.classList.remove('hidden');
+                    } else {
+                        showToast(errorMessage, 'error');
+                    }
+                })
+                .finally(() => {
+                    forgotText.textContent = 'Send Reset Link';
+                    forgotSpinner.classList.add('hidden');
+                });
+        });
+        
+        function resendEmail() {
+            const resendBtn = document.querySelector('#forgot-step2 button');
+            const email = document.getElementById('sent-email').textContent;
+            
+            resendBtn.disabled = true;
+            resendBtn.innerHTML = '<i class="fas fa-spinner rotate mr-1"></i> Sending...';
+            
+            // Resend password reset email
+            auth.sendPasswordResetEmail(email)
+                .then(() => {
+                    showToast('Reset email sent again!', 'success');
+                })
+                .catch((error) => {
+                    showToast(error.message, 'error');
+                })
+                .finally(() => {
+                    resendBtn.disabled = false;
+                    resendBtn.textContent = 'Resend';
+                });
+        }
+        
+        // Show welcome banner when logged in
+        function showWelcomeBanner(username) {
+            const welcomeBanner = document.getElementById('welcome-banner');
+            const welcomeUsername = document.getElementById('welcome-username');
+            
+            welcomeUsername.textContent = username;
+            welcomeBanner.classList.remove('hidden');
+        }
+        
+        // Update authentication buttons
+        function updateAuthButtons() {
+            const user = auth.currentUser;
+            const authButton = document.getElementById('auth-button');
+            const mobileAuthButton = document.getElementById('mobile-auth-button');
+            const signupCtaButton = document.getElementById('signup-cta-button');
+            
+            if (user) {
+                // User is logged in
+                if (authButton) {
+                    authButton.textContent = 'Logout';
+                    authButton.onclick = logout;
+                }
+                if (mobileAuthButton) {
+                    mobileAuthButton.textContent = 'Logout';
+                    mobileAuthButton.onclick = logout;
+                }
+                if (signupCtaButton) {
+                    signupCtaButton.classList.add('hidden');
+                }
+            } else {
+                // User is logged out
+                if (authButton) {
+                    authButton.textContent = 'Sign In';
+                    authButton.onclick = function() { toggleModal('login-modal'); };
+                }
+                if (mobileAuthButton) {
+                    mobileAuthButton.textContent = 'Sign In';
+                    mobileAuthButton.onclick = function() { toggleModal('login-modal'); };
+                }
+                if (signupCtaButton) {
+                    signupCtaButton.classList.remove('hidden');
+                }
+            }
+        }
+        
+        // Logout function
+        function logout() {
+            auth.signOut().then(() => {
+                // Sign-out successful
+                showToast('Logged out successfully', 'info');
+                toggleModal('settings-modal');
+            }).catch((error) => {
+                // An error happened
+                showToast(error.message, 'error');
+            });
+        }
+        
+        // Contact form submission
+        document.getElementById('contact-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('contact-name').value;
+            const email = document.getElementById('contact-email').value || auth.currentUser.email;
+            const service = document.getElementById('contact-service').value;
+            const message = document.getElementById('contact-message').value;
+            const contactSpinner = document.getElementById('contact-spinner');
+            const contactText = document.getElementById('contact-text');
+            
+            contactText.textContent = 'Sending...';
+            contactSpinner.classList.remove('hidden');
+            
+            // Save contact form to Firestore
+            db.collection('contacts').add({
+                name: name,
+                email: email,
+                service: service,
+                message: message,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            })
+            .then(() => {
+                // Show success message
+                showToast('Message sent successfully!', 'success');
+                toggleModal('contact-modal');
+                
+                // Reset form
+                document.getElementById('contact-form').reset();
+            })
+            .catch((error) => {
+                showToast('Error sending message: ' + error.message, 'error');
+            })
+            .finally(() => {
+                contactText.textContent = 'Send Message';
+                contactSpinner.classList.add('hidden');
+            });
+        });
+        
+        // Show toast notification
+        function showToast(message, type) {
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                info: 'bg-blue-500'
+            };
+            
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-4 left-1/2 transform -translate-x-1/2 ${colors[type] || 'bg-gray-800'} text-white px-4 py-2 rounded-lg shadow-lg flex items-center`;
+            toast.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'} mr-2"></i>
+                ${message}
+            `;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
